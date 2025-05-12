@@ -3,6 +3,8 @@ import os
 import torch
 import torch.nn as nn
 from matplotlib import pyplot as plt
+import torchvision.utils as vutils
+from torch.utils.data import Subset
 
 # Parametry modelu
 IMG_SIZE = 128
@@ -65,7 +67,7 @@ class VAE(nn.Module):
         z = self.reparameterize(mu, logvar)
         return self.decode(z), mu, logvar
 
-    def generate_from_accurate_params(self, mu, logvar, num_samples=1, device='cpu'):
+    def generate_from_accurate_params(self, mu, logvar, num_samples=1):
         """
         Generuje próbki z rozkładu N(mu, exp(logvar))
 
@@ -81,8 +83,8 @@ class VAE(nn.Module):
         self.eval()
         with torch.no_grad():
 
-            mu = mu.expand(num_samples, -1).to(device)          # kształt: [num_samples, latent_dim]
-            logvar = logvar.expand(num_samples, -1).to(device)  # kształt: [num_samples, latent_dim]
+            mu = mu.expand(num_samples, -1).to(self.device)          # kształt: [num_samples, latent_dim]
+            logvar = logvar.expand(num_samples, -1).to(self.device)  # kształt: [num_samples, latent_dim]
 
             std = torch.exp(0.5 * logvar)
             eps = torch.randn_like(std)  # (num_samples, LATENT_DIM)
@@ -154,4 +156,70 @@ class VAE(nn.Module):
                 axes[1, i].axis('off')
             plt.savefig(f'{self.result_dir}/recon_{epoch%100}.png')
             plt.close()
+
+
+    def generate_new_data(self, num_samples=50,output_dir="generated_images/VAE"):
+        """
+        Generuje i zapisuje obrazy z losowego N(mu, exp(logvar)), gdzie mu i logvar ~ N(0,1)
+
+        Args:
+            num_samples (int): liczba obrazów
+            device (str): urządzenie
+        """
+        # Losowe mu i logvar z N(0, 1)
+        mu = torch.randn(LATENT_DIM).to(self.device)
+        logvar = torch.randn(LATENT_DIM).to(self.device)
+
+        # Wygeneruj obrazy
+        images = self.generate_from_accurate_params(mu, logvar, num_samples=num_samples)
+
+        # Przeskaluj do [0, 1]
+        #images = (images + 1) / 2
+
+        # Zapisz obrazy
+        os.makedirs(output_dir, exist_ok=True)
+
+        for i, img in enumerate(images):
+            vutils.save_image(img, os.path.join(output_dir, f"generated_{i}.png"))
+
+
+
+    def generate_similar_data(self, data, num_samples=50, output_dir="generated_images/CNNVAE"):
+        """
+        Generuje i zapisuje obrazy z losowego N(mu, exp(logvar)), gdzie mu i logvar ~ N(0,1)
+
+        Args:
+            num_samples (int): liczba obrazów
+            device (str): urządzenie
+            :param data: dane wejściowe
+        """
+
+        # Wybieramy próbki z danych
+        small_data = Subset(data, range(num_samples))
+
+        small_images = []
+        for idx in range(len(small_data)):
+            image = small_data[idx]  # Rozpakuj obraz i etykietę
+            small_images.append(image)
+
+        # Łączymy obrazy w jeden tensor
+        small_images_tensor = torch.stack(small_images).to(self.device)  # Przenosimy na odpowiednie urządzenie
+
+        # Uzyskujemy mu i logvar
+        mu, logvar = self.encode(small_images_tensor)
+
+        logvar *= 2 # Parametr wariancji do wyboru
+
+        # Reparametryzacja
+        z = self.reparameterize(mu, logvar)
+
+        # Generowanie obrazów
+        images = self.generate_from_z(z)
+
+        # Zapisujemy wygenerowane obrazy
+        os.makedirs(output_dir, exist_ok=True)
+
+        for i, img in enumerate(images):
+            vutils.save_image(img, os.path.join(output_dir, f"generated_{i}.png"))
+
 

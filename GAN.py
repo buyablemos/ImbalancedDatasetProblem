@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import torchvision.utils as vutils
 
 
 class Generator(nn.Module):
@@ -194,9 +195,8 @@ class GAN(nn.Module):
 
         return avg_loss
 
-    def visualize_reconstruction(self, epoch):
+    def visualize_reconstruction(self, epoch, num_samples = 16):
 
-        num_samples = 16
 
         # Generowanie próbek
         z = torch.randn(num_samples, self.LATENT_DIM).to(self.device)  # Generowanie z losowego wektora latentnego
@@ -244,3 +244,21 @@ class GAN(nn.Module):
 
     def save_discriminator(self):
         torch.save(self.discriminator.state_dict(), f'{self.result_dir}/best_discriminator.pth')
+
+
+    def generate_new_data(self, num_samples=16, output_dir="generated_images/GAN"):
+        # Generowanie próbek
+        z = torch.randn(num_samples, self.LATENT_DIM).to(self.device)
+        fake_imgs = self.generator(z)
+
+        # Przeskalowanie wartości z [-1, 1] do [0, 1]
+        fake_imgs = (fake_imgs + 1) / 2
+
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Zapisz każdy obraz jako osobny plik
+        for i, img in enumerate(fake_imgs):
+            vutils.save_image(img, os.path.join(output_dir, f"sample_{i}.png"))
+
+
