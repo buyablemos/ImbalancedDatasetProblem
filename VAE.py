@@ -93,6 +93,13 @@ class VAE(nn.Module):
             samples = self.decode(z)    # (num_samples, CHANNELS, IMG_SIZE, IMG_SIZE)
         return samples
 
+    def generate_from_z(self, z):
+
+        self.eval()
+        with torch.no_grad():
+            samples = self.decode(z)  # (num_samples, CHANNELS, IMG_SIZE, IMG_SIZE)
+        return samples
+
     def load_models(self):
 
         model_path = os.path.join(self.result_dir, "vae_best.pth")
@@ -184,7 +191,7 @@ class VAE(nn.Module):
 
 
 
-    def generate_similar_data(self, data, num_samples=50, output_dir="generated_images/CNNVAE"):
+    def generate_similar_data(self, data, num_samples=50, output_dir="generated_images/VAE"):
         """
         Generuje i zapisuje obrazy z losowego N(mu, exp(logvar)), gdzie mu i logvar ~ N(0,1)
 

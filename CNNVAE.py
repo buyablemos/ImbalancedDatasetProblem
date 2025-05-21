@@ -109,7 +109,7 @@ class CNNVAE(nn.Module):
 
     def load_models(self):
 
-        model_path = os.path.join(self.result_dir, "vae_best.pth")
+        model_path = os.path.join(self.result_dir, "cnnvae_best.pth")
 
         if os.path.exists(model_path):
             self.load_state_dict(torch.load(model_path, map_location=self.device))
