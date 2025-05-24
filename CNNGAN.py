@@ -259,9 +259,9 @@ class CNNGAN(nn.Module):
         torch.save(self.discriminator.state_dict(), f'{self.result_dir}/best_discriminator.pth')
 
 
-    def generate_new_data(self, num_samples=16, output_dir="generated_images/CNNGAN"):
+    def generate_new_data(self, num_samples=16, output_dir="generated_images/CNNGAN", scale_factor=1):
         # Generowanie próbek
-        z = torch.randn(num_samples, self.LATENT_DIM).to(self.device)
+        z = torch.randn(num_samples, self.LATENT_DIM).to(self.device) * scale_factor
         fake_imgs = self.generator(z)
 
         # Przeskalowanie wartości z [-1, 1] do [0, 1]

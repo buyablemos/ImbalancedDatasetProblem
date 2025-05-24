@@ -1,3 +1,4 @@
+import itertools
 import os
 
 import torch
@@ -5,6 +6,7 @@ import torch.nn as nn
 from matplotlib import pyplot as plt
 import torchvision.utils as vutils
 from torch.utils.data import Subset
+import torch.nn.functional as F
 
 # Parametry modelu
 IMG_SIZE = 128
@@ -14,7 +16,7 @@ LATENT_DIM = 256
 
 class CNNVAE(nn.Module):
     def __init__(self, device='cpu', result_dir="results", load_pretrained=True):
-        super(CNNVAE, self).__init__()
+        super().__init__()
 
         self.result_dir = result_dir
         self.device = device
@@ -31,20 +33,20 @@ class CNNVAE(nn.Module):
             nn.ReLU(),
             nn.Conv2d(256, 512, kernel_size=4, stride=2, padding=1),  # [B, 512, IMG_SIZE/32, IMG_SIZE/32]
             nn.ReLU()
-        )
+        ).to(device)
 
         # Ustalanie rozmiaru po przejściu przez encoder
         self.flatten_dim = 512 * (IMG_SIZE // 32) * (IMG_SIZE // 32)
 
         # Fully connected warstwy do latentnej przestrzeni
-        self.fc_mu = nn.Linear(self.flatten_dim, LATENT_DIM)
-        self.fc_var = nn.Linear(self.flatten_dim, LATENT_DIM)
+        self.fc_mu = nn.Linear(self.flatten_dim, LATENT_DIM).to(device)
+        self.fc_var = nn.Linear(self.flatten_dim, LATENT_DIM).to(device)
 
         # Decoder (transponowane konwolucje)
         self.decoder_fc = nn.Sequential(
             nn.Linear(LATENT_DIM, self.flatten_dim),
             nn.ReLU()
-        )
+        ).to(device)
 
         self.decoder_conv = nn.Sequential(
             nn.ConvTranspose2d(512, 256, kernel_size=4, stride=2, padding=1),  # [B, 256, IMG_SIZE/16, IMG_SIZE/16]
@@ -57,9 +59,11 @@ class CNNVAE(nn.Module):
             nn.ReLU(),
             nn.ConvTranspose2d(32, CHANNELS, kernel_size=4, stride=2, padding=1),  # [B, CHANNELS, IMG_SIZE, IMG_SIZE]
             nn.Sigmoid()  # Wartości wyjściowe w zakresie [0, 1]
-        )
+        ).to(device)
 
         self.optimizer = torch.optim.Adam(self.parameters(), lr=0.001)
+
+        self.loss_fn = VAELoss(use_bce=True, beta=1.0)
 
         if load_pretrained:
             self.load_models()
@@ -117,14 +121,14 @@ class CNNVAE(nn.Module):
         else:
             print("[INFO] No VAE checkpoint found.")
 
-    def train_vae(self, epoch, dataloader, loss_fn):
+    def train_vae(self, epoch, dataloader):
         self.train()
         train_loss = 0
         for data in dataloader:
             data = data.to(self.device)
             self.optimizer.zero_grad()
             recon, mu, logvar = self.forward(data)
-            loss = loss_fn(recon_x=recon, x=data, mu=mu, logvar=logvar)
+            loss = self.loss_fn.forward(recon_x=recon, x=data, mu=mu, logvar=logvar)
             train_loss += loss.item()
             loss.backward()
             self.optimizer.step()
@@ -134,14 +138,14 @@ class CNNVAE(nn.Module):
         print(f'Train Epoch: {epoch} | Loss: {train_loss:.4f}')
         return train_loss
 
-    def validate(self, epoch, dataloader, loss_fn):
+    def validate(self, epoch, dataloader):
         self.eval()
         validate_loss = 0
         with torch.no_grad():
             for data in dataloader:
                 data = data.to(self.device)
                 recon, mu, logvar = self.forward(data)
-                validate_loss += loss_fn(recon_x=recon, x=data, mu=mu, logvar=logvar).item()
+                validate_loss += self.loss_fn.forward(recon_x=recon, x=data, mu=mu, logvar=logvar)
 
         validate_loss /= len(dataloader.dataset)
         print(f'Validate Epoch: {epoch} | Loss: {validate_loss:.4f}')
@@ -186,40 +190,69 @@ class CNNVAE(nn.Module):
         for i, img in enumerate(images):
             vutils.save_image(img, os.path.join(output_dir, f"generated_{i}.png"))
 
-    def generate_similar_data(self, data, num_samples=50, output_dir="generated_images/CNNVAE"):
+    def generate_similar_data(self, data, mu_multiplier=1, log_multiplier=1, num_samples=50,
+                              output_dir="generated_images/CNNVAE"):
         """
-        Generuje i zapisuje obrazy z losowego N(mu, exp(logvar)), gdzie mu i logvar ~ N(0,1)
+        Generuje i zapisuje obrazy z losowego N(mu, exp(logvar)), gdzie mu i logvar pochodzą z zakodowanych danych.
 
         Args:
-            num_samples (int): liczba obrazów
-            device (str): urządzenie
-            :param data: dane wejściowe
+            data: dane wejściowe (Dataset lub Subset)
+            mu_multiplier (float): mnożnik średniej
+            log_multiplier (float): mnożnik wariancji logarytmicznej
+            num_samples (int): liczba obrazów do wygenerowania
+            output_dir (str): katalog do zapisu wygenerowanych obrazów
         """
 
-        # Wybieramy próbki z danych
-        small_data = Subset(data, range(num_samples))
-
+        repeated_batches = itertools.cycle(data)  # nieskończone batche
         small_images = []
-        for idx in range(len(small_data)):
-            image = small_data[idx]  # Rozpakuj obraz i etykietę
-            small_images.append(image)
 
-        # Łączymy obrazy w jeden tensor
-        small_images_tensor = torch.stack(small_images).to(self.device)  # Przenosimy na odpowiednie urządzenie
+        for batch in repeated_batches:
+            images = batch[0] if isinstance(batch, (tuple, list)) else batch  # tylko obrazy
+            for img in images:
+                small_images.append(img)
+                if len(small_images) >= num_samples:
+                    break
+            if len(small_images) >= num_samples:
+                break
 
-        # Uzyskujemy mu i logvar
+        # Tensor obrazów i dodanie szumu aby zdjęcia się różniły
+        small_images_tensor = torch.stack(small_images).to(self.device)
+        noise = torch.randn_like(small_images_tensor) * 0.05
+        small_images_tensor += noise
+
+        # Encode -> mu/logvar -> z
         mu, logvar = self.encode(small_images_tensor)
-
-        logvar *= 2 # Parametr wariancji do wyboru
-
-        # Reparametryzacja
+        mu *= mu_multiplier
+        logvar *= log_multiplier
         z = self.reparameterize(mu, logvar)
 
-        # Generowanie obrazów
+        # Generowanie i zapis obrazów
         images = self.generate_from_z(z)
-
-        # Zapisujemy wygenerowane obrazy
         os.makedirs(output_dir, exist_ok=True)
-
         for i, img in enumerate(images):
             vutils.save_image(img, os.path.join(output_dir, f"generated_{i}.png"))
+
+
+class VAELoss(nn.Module):
+    def __init__(self, use_bce=True, beta=1.0):
+        """
+        use_bce: bool — jeśli True, używa binary cross entropy, inaczej MSE
+        beta: float — waga KL-divergencji (dla beta-VAE)
+        """
+        super().__init__()
+        self.use_bce = use_bce
+        self.beta = beta
+
+    def forward(self, recon_x, x, mu, logvar):
+        if self.use_bce:
+            # Zakłada, że dane są w [0,1]
+            recon_loss = F.binary_cross_entropy(recon_x, x, reduction='sum')
+            recon_loss /= x.size(0)
+        else:
+            recon_loss = F.mse_loss(recon_x, x, reduction='sum')
+            recon_loss /= x.size(0)
+
+        # KL-divergencja: średnia na batch
+        kld_loss = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+
+        return recon_loss + (self.beta * kld_loss)

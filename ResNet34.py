@@ -4,6 +4,9 @@ import torch.nn as nn
 import torch.optim as optim
 from torchvision import models
 import matplotlib.pyplot as plt
+from sklearn.metrics import fbeta_score, balanced_accuracy_score, recall_score, confusion_matrix
+
+
 
 class ResNetTrainer:
     def __init__(self,
@@ -48,19 +51,14 @@ class ResNetTrainer:
 
     def train(self,
               train_loader,
-              val_loader,
-              num_epochs: int = 25,
-              save_best_to: str = 'best_model.pth'):
+              num_epochs: int = 25):
         """
         Trains the model and validates at each epoch.
 
         Args:
             train_loader (DataLoader): DataLoader for training data.
-            val_loader (DataLoader): DataLoader for validation data.
             num_epochs (int): Number of training epochs.
-            save_best_to (str): Path to save the best model by validation accuracy.
         """
-        best_acc = 0.0
         for epoch in range(1, num_epochs + 1):
             # Training phase
             self.model.train()
@@ -88,52 +86,46 @@ class ResNetTrainer:
             self.history['train_loss'].append(epoch_loss)
             self.history['train_acc'].append(epoch_acc)
 
-            # Validation phase
-            val_loss, val_acc = self.validate(val_loader)
-            self.history['val_loss'].append(val_loss)
-            self.history['val_acc'].append(val_acc)
-
             # Step scheduler
             self.scheduler.step()
 
             print(f"Epoch {epoch}/{num_epochs} | "
-                  f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f} | "
-                  f"Val Loss: {val_loss:.4f} Acc: {val_acc:.4f}")
+                  f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
 
-            # Save best model
-            if val_acc > best_acc:
-                best_acc = val_acc
-                self.save_model(save_best_to)
 
     def validate(self, loader):
-        """
-        Validates the model on the given DataLoader.
-
-        Args:
-            loader (DataLoader): DataLoader for validation or test data.
-
-        Returns:
-            loss (float): Average loss over the dataset.
-            acc (float): Accuracy over the dataset.
-        """
         self.model.eval()
-        running_loss = 0.0
-        running_corrects = 0
-        total = 0
+        all_preds = []
+        all_labels = []
 
         with torch.no_grad():
             for inputs, labels in loader:
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
                 outputs = self.model(inputs)
-                loss = self.criterion(outputs, labels)
 
-                running_loss += loss.item() * inputs.size(0)
                 preds = outputs.argmax(dim=1)
-                running_corrects += (preds == labels).sum().item()
-                total += labels.size(0)
 
-        return running_loss / total, running_corrects / total
+                all_preds.append(preds.cpu())
+                all_labels.append(labels.cpu())
+
+        all_preds = torch.cat(all_preds).numpy()
+        all_labels = torch.cat(all_labels).numpy()
+
+        # F2 score (beta=2)
+        f2 = fbeta_score(all_labels, all_preds, beta=2, average='binary')
+
+        # Balanced accuracy
+        bal_acc = balanced_accuracy_score(all_labels, all_preds)
+
+        # Recall (czułość)
+        recall = recall_score(all_labels, all_preds, average='binary')
+
+        # Specificity (swoistość) = TN / (TN + FP)
+        tn, fp, fn, tp = confusion_matrix(all_labels, all_preds).ravel()
+        specificity = tn / (tn + fp)
+
+        return f2, bal_acc, recall, specificity
 
     def visualize(self):
         """
