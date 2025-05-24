@@ -51,16 +51,20 @@ class ResNetTrainer:
 
     def train(self,
               train_loader,
-              num_epochs: int = 25):
+              num_epochs: int = 25,
+              patience: int = 3):
         """
-        Trains the model and validates at each epoch.
+        Trains the model and validates at each epoch, with early stopping.
 
         Args:
             train_loader (DataLoader): DataLoader for training data.
             num_epochs (int): Number of training epochs.
+            patience (int): Number of epochs with no improvement after which training stops.
         """
+        best_acc = 0.0
+        epochs_no_improve = 0
+
         for epoch in range(1, num_epochs + 1):
-            # Training phase
             self.model.train()
             running_loss = 0.0
             running_corrects = 0
@@ -91,6 +95,19 @@ class ResNetTrainer:
 
             print(f"Epoch {epoch}/{num_epochs} | "
                   f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
+
+            # Early stopping
+            if epoch_acc > best_acc:
+                best_acc = epoch_acc
+                epochs_no_improve = 0
+            else:
+                epochs_no_improve += 1
+                print(f"No improvement for {epochs_no_improve} epoch(s).")
+
+            if epochs_no_improve >= patience:
+                print(f"Early stopping triggered after {epoch} epochs.")
+                break
+
 
 
     def validate(self, loader):

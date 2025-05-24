@@ -4,7 +4,6 @@ import shutil
 from sklearn.base import BaseEstimator
 from torch.utils.data import DataLoader, Subset, ConcatDataset
 from torchvision.transforms import transforms
-
 from CNNVAE import CNNVAE
 from DatasetClasses import NegativeOnlySubset, CapsuleDataset
 from ResNet34 import ResNetTrainer
@@ -60,7 +59,7 @@ class CNNVAEResNetEstimator(BaseEstimator):
             self.train_neg_only_loader,
             mu_multiplier=self.mu_multiplier,
             log_multiplier=self.logvar_multiplier,
-            num_samples=num_neg * self.multiplier_generated_samples,
+            num_samples=int(num_neg * self.multiplier_generated_samples),
             output_dir=gen_dir
         )
 
@@ -179,7 +178,7 @@ class CNNGANResNetEstimator(BaseEstimator):
         self.train_neg_only_loader = DataLoader(train_neg_only_dataset, batch_size=self.batch_size, shuffle=True)
 
         self.gan_model.generate_new_data(
-            num_samples=num_neg * self.multiplier_generated_samples,
+            num_samples=int(num_neg * self.multiplier_generated_samples),
             output_dir=gen_dir,
             scale_factor=self.scale_factor
         )
