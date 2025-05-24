@@ -12,7 +12,7 @@ class ResNetTrainer:
     def __init__(self,
                  model_name: str = 'resnet34',
                  num_classes: int = 2,
-                 lr: float = 1e-3,
+                 lr: float = 1e-4,
                  momentum: float = 0.9,
                  step_size: int = 7,
                  gamma: float = 0.1,
@@ -38,12 +38,16 @@ class ResNetTrainer:
         self.model.fc = nn.Linear(num_features, num_classes)
         self.model = self.model.to(self.device)
 
-        # for param in self.model.parameters():
-        #     param.requires_grad = False
+        # Unfreeze last 2 layer
+        for name, param in self.model.named_parameters():
+            if "layer4" in name or "fc" in name:
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
 
         # Loss, optimizer, scheduler
         self.criterion = nn.CrossEntropyLoss()
-        self.optimizer = optim.SGD(self.model.parameters(), lr=lr, momentum=momentum)
+        self.optimizer = optim.Adam(filter(lambda p: p.requires_grad, self.model.parameters()), lr=lr)
         self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=step_size, gamma=gamma)
 
         # Tracking
@@ -51,20 +55,18 @@ class ResNetTrainer:
 
     def train(self,
               train_loader,
-              num_epochs: int = 25,
-              patience: int = 3):
+              num_epochs: int = 25):
         """
-        Trains the model and validates at each epoch, with early stopping.
+        Trains the model and validates at each epoch.
 
         Args:
             train_loader (DataLoader): DataLoader for training data.
             num_epochs (int): Number of training epochs.
-            patience (int): Number of epochs with no improvement after which training stops.
         """
-        best_acc = 0.0
-        epochs_no_improve = 0
-
+        imagenet_mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1).to(self.device)
+        imagenet_std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1).to(self.device)
         for epoch in range(1, num_epochs + 1):
+            # Training phase
             self.model.train()
             running_loss = 0.0
             running_corrects = 0
@@ -74,8 +76,10 @@ class ResNetTrainer:
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
 
+                inputs_resnet = (inputs - imagenet_mean) / imagenet_std
+
                 self.optimizer.zero_grad()
-                outputs = self.model(inputs)
+                outputs = self.model( inputs_resnet)
                 loss = self.criterion(outputs, labels)
                 loss.backward()
                 self.optimizer.step()
@@ -96,18 +100,6 @@ class ResNetTrainer:
             print(f"Epoch {epoch}/{num_epochs} | "
                   f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
 
-            # Early stopping
-            if epoch_acc > best_acc:
-                best_acc = epoch_acc
-                epochs_no_improve = 0
-            else:
-                epochs_no_improve += 1
-                print(f"No improvement for {epochs_no_improve} epoch(s).")
-
-            if epochs_no_improve >= patience:
-                print(f"Early stopping triggered after {epoch} epochs.")
-                break
-
 
 
     def validate(self, loader):
@@ -115,11 +107,17 @@ class ResNetTrainer:
         all_preds = []
         all_labels = []
 
+        imagenet_mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1).to(self.device)
+        imagenet_std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1).to(self.device)
+
         with torch.no_grad():
             for inputs, labels in loader:
                 inputs = inputs.to(self.device)
                 labels = labels.to(self.device)
-                outputs = self.model(inputs)
+
+                inputs_resnet = (inputs - imagenet_mean) / imagenet_std
+
+                outputs = self.model(inputs_resnet)
 
                 preds = outputs.argmax(dim=1)
 
