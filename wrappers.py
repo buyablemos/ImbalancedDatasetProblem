@@ -5,7 +5,7 @@ from sklearn.base import BaseEstimator
 from torch.utils.data import DataLoader, Subset, ConcatDataset
 from torchvision.transforms import transforms
 from CNNVAE import CNNVAE
-from DatasetClasses import NegativeOnlySubset, CapsuleDataset
+from DatasetClasses import NegativeOnlySubset, CapsuleDataset, PositiveOnlySubset
 from ResNet34 import ResNetTrainer
 from CNNGAN import CNNGAN
 
@@ -51,17 +51,31 @@ class CNNVAEResNetEstimator(BaseEstimator):
 
         train_neg_only_dataset = NegativeOnlySubset(self.dataset, X)
 
-        num_neg = len(train_neg_only_dataset)
+        if self.multiplier_generated_samples == 'synthetic':
+
+            num_neg = len(train_ds) - len(train_neg_only_dataset)
+
+        else:
+            num_neg = len(train_neg_only_dataset)
 
         self.train_neg_only_loader = DataLoader(train_neg_only_dataset, batch_size=self.batch_size, shuffle=True)
 
-        self.vae_model.generate_similar_data(
-            self.train_neg_only_loader,
-            mu_multiplier=self.mu_multiplier,
-            log_multiplier=self.logvar_multiplier,
-            num_samples=int(num_neg * self.multiplier_generated_samples),
-            output_dir=gen_dir
-        )
+        if self.multiplier_generated_samples == 'synthetic':
+            self.vae_model.generate_similar_data(
+                self.train_neg_only_loader,
+                mu_multiplier=self.mu_multiplier,
+                log_multiplier=self.logvar_multiplier,
+                num_samples=int(num_neg),
+                output_dir=gen_dir
+            )
+        else:
+            self.vae_model.generate_similar_data(
+                self.train_neg_only_loader,
+                mu_multiplier=self.mu_multiplier,
+                log_multiplier=self.logvar_multiplier,
+                num_samples=int(num_neg * self.multiplier_generated_samples),
+                output_dir=gen_dir
+            )
 
         transform = transforms.Compose([
             transforms.Resize((self.img_size, self.img_size)),
@@ -75,8 +89,13 @@ class CNNVAEResNetEstimator(BaseEstimator):
             transform=transform
         )
 
-        classifier_dataset = ConcatDataset([generated_dataset, train_ds])
-        self.classifier_dataloader = DataLoader(classifier_dataset, batch_size=self.batch_size, shuffle=True)
+        if self.multiplier_generated_samples == 'synthetic':
+            positive_only_dataset = PositiveOnlySubset(self.dataset, X, transform=transform)
+            classifier_dataset = ConcatDataset([generated_dataset, positive_only_dataset])
+            self.classifier_dataloader = DataLoader(classifier_dataset, batch_size=self.batch_size, shuffle=True)
+        else:
+            classifier_dataset = ConcatDataset([generated_dataset, train_ds])
+            self.classifier_dataloader = DataLoader(classifier_dataset, batch_size=self.batch_size, shuffle=True)
 
         # 3. Trening ResNet na wygenerowanych danych
         self.trainer = ResNetTrainer()
@@ -173,15 +192,28 @@ class CNNGANResNetEstimator(BaseEstimator):
 
         train_neg_only_dataset = NegativeOnlySubset(self.dataset, X)
 
-        num_neg = len(train_neg_only_dataset)
+        if self.multiplier_generated_samples == 'synthetic':
+
+            num_neg = len(train_ds) - len(train_neg_only_dataset)
+
+        else:
+            num_neg = len(train_neg_only_dataset)
 
         self.train_neg_only_loader = DataLoader(train_neg_only_dataset, batch_size=self.batch_size, shuffle=True)
 
-        self.gan_model.generate_new_data(
-            num_samples=int(num_neg * self.multiplier_generated_samples),
-            output_dir=gen_dir,
-            scale_factor=self.scale_factor
-        )
+
+        if self.multiplier_generated_samples == 'synthetic':
+            self.gan_model.generate_new_data(
+                num_samples=int(num_neg),
+                output_dir=gen_dir,
+                scale_factor=self.scale_factor
+            )
+        else:
+            self.gan_model.generate_new_data(
+                num_samples=int(num_neg * self.multiplier_generated_samples),
+                output_dir=gen_dir,
+                scale_factor=self.scale_factor
+            )
 
         transform = transforms.Compose([
             transforms.Resize((self.img_size, self.img_size)),
@@ -195,8 +227,13 @@ class CNNGANResNetEstimator(BaseEstimator):
             transform=transform
         )
 
-        classifier_dataset = ConcatDataset([generated_dataset, train_ds])
-        self.classifier_dataloader = DataLoader(classifier_dataset, batch_size=self.batch_size, shuffle=True)
+        if self.multiplier_generated_samples == 'synthetic':
+            positive_only_dataset = PositiveOnlySubset(self.dataset, X, transform=transform)
+            classifier_dataset = ConcatDataset([generated_dataset, positive_only_dataset])
+            self.classifier_dataloader = DataLoader(classifier_dataset, batch_size=self.batch_size, shuffle=True)
+        else:
+            classifier_dataset = ConcatDataset([generated_dataset, train_ds])
+            self.classifier_dataloader = DataLoader(classifier_dataset, batch_size=self.batch_size, shuffle=True)
 
         # 3. Trening ResNet na wygenerowanych danych
         self.trainer = ResNetTrainer()
