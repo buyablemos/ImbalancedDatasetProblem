@@ -59,3 +59,17 @@ class NegativeOnlySubset(Dataset):
     def __getitem__(self, idx):
         img, _= self.base_dataset[self.samples[idx]]
         return img
+
+class PositiveOnlySubset(Dataset):
+    def __init__(self, base_dataset, indices,transform):
+        self.samples = [i for i in indices if base_dataset.samples[i][1] == 0]
+        self.base_dataset = base_dataset
+        self.transform = transform
+
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        img, label = self.base_dataset[self.samples[idx]]
+        return img, label

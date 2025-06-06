@@ -2,9 +2,7 @@ torch
 numpy
 matplotlib
 torchvision
-torch
-numpy
-matplotlib
-torchvision
 pillow
 pandas
+scipy
+seaborn

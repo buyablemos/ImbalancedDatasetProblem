@@ -53,6 +53,8 @@ class ResNetTrainer:
         # Tracking
         self.history = {'train_loss': [], 'val_loss': [], 'train_acc': [], 'val_acc': []}
 
+
+
     def train(self,
               train_loader,
               num_epochs: int = 25):
@@ -65,6 +67,7 @@ class ResNetTrainer:
         """
         imagenet_mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1).to(self.device)
         imagenet_std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1).to(self.device)
+
         for epoch in range(1, num_epochs + 1):
             # Training phase
             self.model.train()
@@ -79,7 +82,7 @@ class ResNetTrainer:
                 inputs_resnet = (inputs - imagenet_mean) / imagenet_std
 
                 self.optimizer.zero_grad()
-                outputs = self.model( inputs_resnet)
+                outputs = self.model(inputs_resnet)
                 loss = self.criterion(outputs, labels)
                 loss.backward()
                 self.optimizer.step()
@@ -99,6 +102,25 @@ class ResNetTrainer:
 
             print(f"Epoch {epoch}/{num_epochs} | "
                   f"Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}")
+
+        # 📊 Zapisz wykres strat i dokładności po zakończeniu treningu
+        epochs_range = range(1, num_epochs + 1)
+
+        plt.figure(figsize=(8, 5))
+
+        # Loss
+        plt.subplot(1, 2, 1)
+        plt.plot(epochs_range, self.history['train_loss'], label='Train Loss', marker='o')
+        plt.title('Training Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.grid(True)
+        plt.legend()
+
+        plt.tight_layout()
+        plt.savefig("training_curves.png")
+        plt.close()
+
 
 
 
