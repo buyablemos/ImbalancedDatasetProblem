@@ -36,14 +36,14 @@ class CNNVAEResNetEstimator(BaseEstimator):
         self.img_size = IMG_SIZE
 
     def fit(self, X=None, y=None):
-        # 1. Generujemy nowe próbki VAE
+
         gen_dir = os.path.join(
             self.output_dir,
             f"mu_{self.mu_multiplier}_logvar_{self.logvar_multiplier}"
         )
 
         if os.path.exists(gen_dir):
-            shutil.rmtree(gen_dir)  # usuwa cały katalog i zawartość
+            shutil.rmtree(gen_dir)
 
         os.makedirs(gen_dir, exist_ok=True)
 
@@ -82,7 +82,7 @@ class CNNVAEResNetEstimator(BaseEstimator):
             transforms.ToTensor(),
         ])
 
-        # 2. Łączymy dwa zbiory  w jeden duży treningowy
+
         generated_dataset = CapsuleDataset(
             pos_dir=None,
             neg_dirs=[gen_dir],
@@ -97,7 +97,7 @@ class CNNVAEResNetEstimator(BaseEstimator):
             classifier_dataset = ConcatDataset([generated_dataset, train_ds])
             self.classifier_dataloader = DataLoader(classifier_dataset, batch_size=self.batch_size, shuffle=True)
 
-        # 3. Trening ResNet na wygenerowanych danych
+
         self.trainer = ResNetTrainer()
 
         self.trainer.train(
@@ -178,13 +178,13 @@ class CNNGANResNetEstimator(BaseEstimator):
         self.scale_factor = scale_factor
 
     def fit(self, X=None, y=None):
-        # 1. Generujemy nowe próbki VAE
+
         gen_dir = os.path.join(
             self.output_dir
         )
 
         if os.path.exists(gen_dir):
-            shutil.rmtree(gen_dir)  # usuwa cały katalog i zawartość
+            shutil.rmtree(gen_dir)
 
         os.makedirs(gen_dir, exist_ok=True)
 
@@ -220,7 +220,7 @@ class CNNGANResNetEstimator(BaseEstimator):
             transforms.ToTensor(),
         ])
 
-        # 2. Łączymy dwa zbiory  w jeden duży treningowy
+
         generated_dataset = CapsuleDataset(
             pos_dir=None,
             neg_dirs=[gen_dir],
@@ -235,7 +235,7 @@ class CNNGANResNetEstimator(BaseEstimator):
             classifier_dataset = ConcatDataset([generated_dataset, train_ds])
             self.classifier_dataloader = DataLoader(classifier_dataset, batch_size=self.batch_size, shuffle=True)
 
-        # 3. Trening ResNet na wygenerowanych danych
+
         self.trainer = ResNetTrainer()
 
         self.trainer.train(

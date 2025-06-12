@@ -1,7 +1,6 @@
 import os
 
 import torch.nn as nn
-import torch.nn.functional as F
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
@@ -116,13 +115,13 @@ class GAN(nn.Module):
             # Przenosimy dane na odpowiednie urządzenie
             real_imgs = data.to(self.device)
 
-            # Adwersarze - Tworzymy etykiety dla prawdziwych i fałszywych obrazów
+            # Tworzymy etykiety dla prawdziwych i fałszywych obrazów
             valid = torch.ones(real_imgs.size(0), 1).to(self.device)  # Prawdziwe obrazy
             fake = torch.zeros(real_imgs.size(0), 1).to(self.device)  # Fałszywe obrazy
 
-            # -----------------------------------
+
             # Trenowanie dyskryminatora
-            # -----------------------------------
+
             self.d_optimizer.zero_grad()
 
             # Trening dyskryminatora na prawdziwych obrazach
@@ -142,9 +141,9 @@ class GAN(nn.Module):
 
             running_d_loss += d_loss.item()
 
-            # -----------------------------------
+
             # Trenowanie generatora
-            # -----------------------------------
+
             self.g_optimizer.zero_grad()
 
             # Generator stara się oszukać dyskryminator

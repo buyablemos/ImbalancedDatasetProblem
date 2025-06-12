@@ -1,8 +1,10 @@
-torch
-numpy
-matplotlib
-torchvision
-pillow
+torch~=2.2.2
+torchvision~=0.17.2
+numpy~=1.26.4
 pandas
-scipy
+matplotlib~=3.9.4
 seaborn
+scikit-learn~=1.6.1
+pillow~=10.2.0
+scipy
+kagglehub

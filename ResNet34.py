@@ -118,7 +118,7 @@ class ResNetTrainer:
         plt.legend()
 
         plt.tight_layout()
-        plt.savefig("training_curves.png")
+        plt.savefig("charts/resnet_training_curves.png")
         plt.close()
 
 

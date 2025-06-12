@@ -1,25 +1,21 @@
 import itertools
 import os
-
 import torch
 import torch.nn as nn
 from matplotlib import pyplot as plt
 import torchvision.utils as vutils
-from torch.utils.data import Subset
 import torch.nn.functional as F
 
-# Parametry modelu
-IMG_SIZE = 128
-CHANNELS = 3
-LATENT_DIM = 256
-
-
 class CNNVAE(nn.Module):
-    def __init__(self, device='cpu', result_dir="results", load_pretrained=True):
+    def __init__(self, device='cpu', result_dir="results", load_pretrained=True,IMG_SIZE=128, CHANNELS=3, LATENT_DIM=256):
         super().__init__()
 
         self.result_dir = result_dir
         self.device = device
+
+        self.latent_dim = LATENT_DIM
+        self.IMG_SIZE = IMG_SIZE
+        self.channels = CHANNELS
 
         # Encoder (konwolucje)
         self.encoder_conv = nn.Sequential(
@@ -70,7 +66,7 @@ class CNNVAE(nn.Module):
 
     def encode(self, x):
         x = self.encoder_conv(x)
-        x = x.view(x.size(0), -1)  # Flatten
+        x = x.view(x.size(0), -1)
         mu = self.fc_mu(x)
         logvar = self.fc_var(x)
         return mu, logvar
@@ -82,7 +78,7 @@ class CNNVAE(nn.Module):
 
     def decode(self, z):
         x = self.decoder_fc(z)
-        x = x.view(-1, 512, IMG_SIZE // 32, IMG_SIZE // 32)  # Reshape do rozmiaru przed dekonwolucją
+        x = x.view(-1, 512, self.img_size // 32, self.img_size // 32)
         return self.decoder_conv(x)
 
     def forward(self, x):
@@ -94,21 +90,21 @@ class CNNVAE(nn.Module):
 
         self.eval()
         with torch.no_grad():
-            mu = mu.expand(num_samples, -1).to(self.device)  # kształt: [num_samples, latent_dim]
-            logvar = logvar.expand(num_samples, -1).to(self.device)  # kształt: [num_samples, latent_dim]
+            mu = mu.expand(num_samples, -1).to(self.device)
+            logvar = logvar.expand(num_samples, -1).to(self.device)
 
             std = torch.exp(0.5 * logvar)
-            eps = torch.randn_like(std)  # (num_samples, LATENT_DIM)
+            eps = torch.randn_like(std)
             z = mu + eps * std
 
-            samples = self.decode(z)  # (num_samples, CHANNELS, IMG_SIZE, IMG_SIZE)
+            samples = self.decode(z)
         return samples
 
     def generate_from_z(self, z):
 
         self.eval()
         with torch.no_grad():
-            samples = self.decode(z)  # (num_samples, CHANNELS, IMG_SIZE, IMG_SIZE)
+            samples = self.decode(z)
         return samples
 
     def load_models(self):
@@ -174,12 +170,9 @@ class CNNVAE(nn.Module):
         """
         Generuje i zapisuje obrazy z losowego N(mu, exp(logvar)), gdzie mu i logvar ~ N(0,1)
 
-        Args:
-            num_samples (int): liczba obrazów
-            device (str): urządzenie
         """
 
-        z = torch.randn(num_samples, LATENT_DIM).to(self.device)
+        z = torch.randn(num_samples, self.latent_dim).to(self.device)
 
         # Wygeneruj obrazy
         images = self.generate_from_z(z)
@@ -195,12 +188,6 @@ class CNNVAE(nn.Module):
         """
         Generuje i zapisuje obrazy z losowego N(mu, exp(logvar)), gdzie mu i logvar pochodzą z zakodowanych danych.
 
-        Args:
-            data: dane wejściowe (Dataset lub Subset)
-            mu_multiplier (float): mnożnik średniej
-            log_multiplier (float): mnożnik wariancji logarytmicznej
-            num_samples (int): liczba obrazów do wygenerowania
-            output_dir (str): katalog do zapisu wygenerowanych obrazów
         """
 
         repeated_batches = itertools.cycle(data)  # nieskończone batche

@@ -7,17 +7,17 @@ import torchvision.utils as vutils
 from torch.utils.data import Subset
 import torch.nn.functional as F
 
-# Parametry modelu
-IMG_SIZE = 128
-CHANNELS = 3
-LATENT_DIM = 64
-HIDDEN_DIM = 512
 
 
 class VAE(nn.Module):
-    def __init__(self, device='cpu', result_dir="results", load_pretrained=True):
+    def __init__(self, device='cpu', result_dir="results", load_pretrained=True,IMG_SIZE=128,CHANNELS=3,LATENT_DIM=64,HIDDEN_DIM=512):
         super(VAE, self).__init__()
         input_dim = IMG_SIZE * IMG_SIZE * CHANNELS
+
+        self.latent_dim = LATENT_DIM
+        self.channels = CHANNELS
+        self.img_size = IMG_SIZE
+        self.hidden_dim = HIDDEN_DIM
 
         self.result_dir = result_dir
         self.device = device
@@ -63,7 +63,7 @@ class VAE(nn.Module):
         return mu + eps * std
 
     def decode(self, z):
-        return self.decoder(z).view(-1, CHANNELS, IMG_SIZE, IMG_SIZE)
+        return self.decoder(z).view(-1, self.channels, self.img_size, self.img_size)
 
     def forward(self, x):
         mu, logvar = self.encode(x)
@@ -74,14 +74,6 @@ class VAE(nn.Module):
         """
         Generuje próbki z rozkładu N(mu, exp(logvar))
 
-        Args:
-            model: VAE model
-            mu: tensor (LATENT_DIM,) - średnia
-            logvar: tensor (LATENT_DIM,) - log-wariancja
-            num_samples: int - liczba próbek do wygenerowania
-            device: str - urządzenie (cpu/cuda)
-        Returns:
-            Tensor (num_samples, CHANNELS, IMG_SIZE, IMG_SIZE)
         """
         self.eval()
         with torch.no_grad():
@@ -166,13 +158,10 @@ class VAE(nn.Module):
         """
         Generuje i zapisuje obrazy z losowego N(mu, exp(logvar)), gdzie mu i logvar ~ N(0,1)
 
-        Args:
-            num_samples (int): liczba obrazów
-            device (str): urządzenie
         """
         # Losowe mu i logvar z N(0, 1)
-        mu = torch.randn(LATENT_DIM).to(self.device)
-        logvar = torch.randn(LATENT_DIM).to(self.device)
+        mu = torch.randn(self.latent_dim).to(self.device)
+        logvar = torch.randn(self.latent_dim).to(self.device)
 
         # Wygeneruj obrazy
         images = self.generate_from_accurate_params(mu, logvar, num_samples=num_samples)
@@ -190,10 +179,6 @@ class VAE(nn.Module):
         """
         Generuje i zapisuje obrazy z losowego N(mu, exp(logvar)), gdzie mu i logvar ~ N(0,1)
 
-        Args:
-            num_samples (int): liczba obrazów
-            device (str): urządzenie
-            :param data: dane wejściowe
         """
 
         # Wybieramy próbki z danych

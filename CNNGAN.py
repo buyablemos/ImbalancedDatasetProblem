@@ -1,9 +1,7 @@
 import os
 
 import torch.nn as nn
-import torch.nn.functional as F
 import torch
-import numpy as np
 import matplotlib.pyplot as plt
 import torchvision.utils as vutils
 
@@ -128,13 +126,12 @@ class CNNGAN(nn.Module):
             # Przenosimy dane na odpowiednie urządzenie
             real_imgs = data.to(self.device)
 
-            # Adwersarze - Tworzymy etykiety dla prawdziwych i fałszywych obrazów
+            #Tworzymy etykiety dla prawdziwych i fałszywych obrazów
             valid = torch.ones(real_imgs.size(0), 1).to(self.device)  # Prawdziwe obrazy
             fake = torch.zeros(real_imgs.size(0), 1).to(self.device)  # Fałszywe obrazy
 
-            # -----------------------------------
+
             # Trenowanie dyskryminatora
-            # -----------------------------------
             self.d_optimizer.zero_grad()
 
             # Trening dyskryminatora na prawdziwych obrazach
@@ -154,9 +151,7 @@ class CNNGAN(nn.Module):
 
             running_d_loss += d_loss.item()
 
-            # -----------------------------------
             # Trenowanie generatora
-            # -----------------------------------
             self.g_optimizer.zero_grad()
 
             # Generator stara się oszukać dyskryminator
@@ -226,14 +221,14 @@ class CNNGAN(nn.Module):
         # Pętla przez obrazy
         for i in range(rows):
             for j in range(cols):
-                index = i + j  # Indeks obrazu
-                if index < num_samples:  # Sprawdzamy, czy mamy obraz do wyświetlenia
+                index = i + j
+                if index < num_samples:
                     axes[i, j].imshow(fake_imgs[index].detach().cpu().numpy().transpose(1, 2,
                                                                                         0))  # Przekształcamy (C, H, W) na (H, W, C)
-                axes[i, j].axis('off')  # Ukrywamy osie
+                axes[i, j].axis('off')
 
         plt.savefig(f'{self.result_dir}/recon_{epoch%100}.png')
-        plt.close(fig)  # Zamykamy wykres, aby zwolnić pamięć
+        plt.close(fig)
 
 
     def load_models(self):
